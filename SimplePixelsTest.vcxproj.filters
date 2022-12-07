@@ -11,17 +11,33 @@
     <ClCompile Include="Screen.c">
       <Filter>SceneElements</Filter>
     </ClCompile>
+    <ClCompile Include="Spheres.c">
+      <Filter>SceneElements</Filter>
+    </ClCompile>
+    <ClCompile Include="SourceOfLight.c">
+      <Filter>SceneElements</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="assert_cuda.h" />
     <ClInclude Include="interop.h" />
-    <ClInclude Include="screen.h">
-      <Filter>SceneElements</Filter>
+    <ClInclude Include="Spheres.h">
+      <Filter>SceneElements\Includes</Filter>
     </ClInclude>
+    <ClInclude Include="Screen.h">
+      <Filter>SceneElements\Includes</Filter>
+    </ClInclude>
+    <ClInclude Include="SourceOfLight.h">
+      <Filter>SceneElements\Includes</Filter>
+    </ClInclude>
+    <ClInclude Include="math_help.h" />
   </ItemGroup>
   <ItemGroup>
     <Filter Include="SceneElements">
       <UniqueIdentifier>{e71422a7-7387-4755-a464-a19310241132}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="SceneElements\Includes">
+      <UniqueIdentifier>{8e04d2e5-face-4136-977b-2e1ec6c83604}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
 </Project>

@@ -27,6 +27,14 @@
 #include "interop.h"
 
 //
+//
+//
+
+#include "Screen.h"
+#include "Spheres.h"
+#include "SourceOfLight.h"
+
+//
 // FPS COUNTER FROM HERE:
 //
 // http://antongerdelan.net/opengl/glcontext2.html
@@ -145,10 +153,35 @@ static void pxl_glfw_window_size_callback(GLFWwindow* window, int width, int hei
 //
 //
 
+void cleanUp(struct pxl_interop* interop, GLFWwindow* window)
+{
+    pxl_interop_destroy(interop);
+
+    glfwDestroyWindow(window);
+    glfwTerminate();
+
+    cuda(DeviceReset());
+}
+
+
+void sceneElemsCleanUp(Spheres_t* d_spheres, Screen_t* screen, LightSource_t* lights)
+{
+    deviceSpheresFree(d_spheres);
+    screenManagedFree(screen);
+    deviceLightSourceFree(lights);
+}
+
+//
+//
+//
+
 cudaError_t
 pxl_kernel_launcher(cudaArray_const_t array, 
                     const int         width, 
                     const int         height,
+                    Spheres_t         d_spheres,
+                    Screen_t*         screen,
+                    LightSource_t     sol,
                     cudaEvent_t       event,
                     cudaStream_t      stream);
 
@@ -156,137 +189,157 @@ pxl_kernel_launcher(cudaArray_const_t array,
 //
 //
 
-int
-main(int argc, char* argv[])
+int main(int argc, char* argv[])
 {
-  //
-  // INIT GLFW
-  //
-  GLFWwindow* window;
+    //
+    // INIT GLFW
+    //
+    GLFWwindow* window;
 
-  pxl_glfw_init(&window,1024,1024);
+    pxl_glfw_init(&window,800,600);
 
-  //
-  // INIT CUDA
-  //
-  cudaError_t cuda_err;
+    //
+    // INIT CUDA
+    //
+    cudaError_t cuda_err;
   
-  int gl_device_id,gl_device_count;
-  cuda_err = cuda(GLGetDevices(&gl_device_count,&gl_device_id,1,cudaGLDeviceListAll));
+    int gl_device_id,gl_device_count;
+    cuda_err = cuda(GLGetDevices(&gl_device_count,&gl_device_id,1,cudaGLDeviceListAll));
 
-  int cuda_device_id = (argc > 1) ? atoi(argv[1]) : gl_device_id;
-  cuda_err = cuda(SetDevice(cuda_device_id));
+    int cuda_device_id = (argc > 1) ? atoi(argv[1]) : gl_device_id;
+    cuda_err = cuda(SetDevice(cuda_device_id));
 
-  //
-  // MULTI-GPU?
-  //
-  const bool multi_gpu = gl_device_id != cuda_device_id;
+    //
+    // MULTI-GPU?
+    //
+    const bool multi_gpu = gl_device_id != cuda_device_id;
 
-  //
-  // INFO
-  //
-  struct cudaDeviceProp props;
+    //
+    // INFO
+    //
+    struct cudaDeviceProp props;
 
-  cuda_err = cuda(GetDeviceProperties(&props,gl_device_id));
-  printf("GL   : %-24s (%2d)\n",props.name,props.multiProcessorCount);
+    cuda_err = cuda(GetDeviceProperties(&props,gl_device_id));
+    printf("GL   : %-24s (%2d)\n",props.name,props.multiProcessorCount);
 
-  cuda_err = cuda(GetDeviceProperties(&props,cuda_device_id));
-  printf("CUDA : %-24s (%2d)\n",props.name,props.multiProcessorCount);
+    cuda_err = cuda(GetDeviceProperties(&props,cuda_device_id));
+    printf("CUDA : %-24s (%2d)\n",props.name,props.multiProcessorCount);
 
-  //
-  // CREATE CUDA STREAM & EVENT
-  //
-  cudaStream_t stream;
-  cudaEvent_t  event;
+    //
+    // CREATE CUDA STREAM & EVENT
+    //
+    cudaStream_t stream;
+    cudaEvent_t  event;
 
-  cuda_err = cuda(StreamCreateWithFlags(&stream,cudaStreamDefault));   // optionally ignore default stream behavior
-  cuda_err = cuda(EventCreateWithFlags(&event,cudaEventBlockingSync)); // | cudaEventDisableTiming);
+    cuda_err = cuda(StreamCreateWithFlags(&stream,cudaStreamDefault));   // optionally ignore default stream behavior
+    cuda_err = cuda(EventCreateWithFlags(&event,cudaEventBlockingSync)); // | cudaEventDisableTiming);
 
-  //
-  // CREATE INTEROP
-  //
-  // TESTING -- DO NOT SET TO FALSE, ONLY TRUE IS RELIABLE
-  struct pxl_interop* const interop = pxl_interop_create(true /*multi_gpu*/,2);
+    //
+    // CREATE INTEROP
+    //
+    // TESTING -- DO NOT SET TO FALSE, ONLY TRUE IS RELIABLE
+    struct pxl_interop* const interop = pxl_interop_create(true /*multi_gpu*/,2);
 
-  //
-  // RESIZE INTEROP
-  //
+    //
+    // RESIZE INTEROP
+    //
   
-  int width, height;
+    int width, height;
 
-  // get initial width/height
-  glfwGetFramebufferSize(window,&width,&height);
+    // get initial width/height
+    glfwGetFramebufferSize(window,&width,&height);
 
-  // resize with initial window dimensions
-  cuda_err = pxl_interop_size_set(interop,width,height);
+    // resize with initial window dimensions
+    cuda_err = pxl_interop_size_set(interop,width,height);
 
-  //
-  // SET USER POINTER AND CALLBACKS
-  //
-  glfwSetWindowUserPointer      (window,interop);
-  glfwSetKeyCallback            (window,pxl_glfw_key_callback);
-  glfwSetFramebufferSizeCallback(window,pxl_glfw_window_size_callback);
+    //
+    // SET USER POINTER AND CALLBACKS
+    //
+    glfwSetWindowUserPointer      (window,interop);
+    glfwSetKeyCallback            (window,pxl_glfw_key_callback);
+    glfwSetFramebufferSizeCallback(window,pxl_glfw_window_size_callback);
   
-  //
-  // LOOP UNTIL DONE
-  //
-  while (!glfwWindowShouldClose(window))
-    {
-      //
-      // MONITOR FPS
-      //
-      pxl_glfw_fps(window);
-      
-      //
-      // EXECUTE CUDA KERNEL ON RENDER BUFFER
-      //
-      int         width,height;
-      cudaArray_t cuda_array;
-
-      pxl_interop_size_get(interop,&width,&height);
-
-      cuda_err = pxl_interop_map(interop,stream);
-
-      cuda_err = pxl_kernel_launcher(pxl_interop_array_get(interop),
-                                     width,
-                                     height,
-                                     event,
-                                     stream);
-
-      cuda_err = pxl_interop_unmap(interop,stream);
-
-      //
-      // BLIT & SWAP FBO
-      // 
-      pxl_interop_blit(interop);
-      // pxl_interop_clear(interop);
-      pxl_interop_swap(interop);
-
-      //
-      // SWAP WINDOW
-      //
-      glfwSwapBuffers(window);
-
-      //
-      // PUMP/POLL/WAIT
-      //
-      glfwPollEvents(); // glfwWaitEvents();
+    //
+    // Generating scene elements
+    //
+    Spheres_t spheres;
+    if (deviceSpheresInit(&spheres) != 0) {
+        cleanUp(interop, window);
+        return EXIT_FAILURE;
     }
 
-  //
-  // CLEANUP
-  //
-  pxl_interop_destroy(interop);
-  
-  glfwDestroyWindow(window);
+    LightSource_t sol;
+    if (deviceLightSourceInit(&sol) != 0) {
+        cleanUp(interop, window);
+        deviceSpheresFree(&spheres);
+        return EXIT_FAILURE;
+    }
+    
+    Screen_t* screen = screenOnManagedAlloc();
+    if (screen == NULL) {
+        cleanUp(interop, window);
+        deviceSpheresFree(&spheres);
+        deviceLightSourceFree(&sol);
+        return EXIT_FAILURE;
+    }
+    //
+    // LOOP UNTIL DONE
+    //
+    while (!glfwWindowShouldClose(window))
+    {
+        //
+        // MONITOR FPS
+        //
+        pxl_glfw_fps(window);
+      
+        //
+        // EXECUTE CUDA KERNEL ON RENDER BUFFER
+        //
+        int         width,height;
+        cudaArray_t cuda_array;
 
-  glfwTerminate();
+        pxl_interop_size_get(interop,&width,&height);
 
-  cuda(DeviceReset());
+        cuda_err = pxl_interop_map(interop,stream);
 
-  // missing some clean up here
+        cuda_err = pxl_kernel_launcher(pxl_interop_array_get(interop),
+                                        width,
+                                        height,
+                                        spheres,
+                                        screen,
+                                        sol,
+                                        event,
+                                        stream);
 
-  exit(EXIT_SUCCESS);
+        cuda_err = pxl_interop_unmap(interop,stream);
+
+        //
+        // BLIT & SWAP FBO
+        // 
+        pxl_interop_blit(interop);
+        // pxl_interop_clear(interop);
+        pxl_interop_swap(interop);
+
+        //
+        // SWAP WINDOW
+        //
+        glfwSwapBuffers(window);
+
+        //
+        // PUMP/POLL/WAIT
+        //
+        glfwPollEvents(); // glfwWaitEvents();
+    }
+
+    //
+    // CLEANUP
+    //
+    cleanUp(interop, window);
+    sceneElemsCleanUp(&spheres, &screen, &sol);
+
+    // missing some clean up here
+
+    exit(EXIT_SUCCESS);
 }
 
 //
