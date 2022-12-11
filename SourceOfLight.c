@@ -1,11 +1,15 @@
 #include "SourceOfLight.h"
 
-#include <cuda_runtime.h>
-
 #include <stdlib.h>
+#include "math_help.h"
+
+#include <stdio.h>
 
 
-#define SOL_NUM 1
+#define SOL_NUM 10
+
+#define MAX_POS_SOL 1200
+#define MIN_POS_SOL -1200
 
 
 int lightSourceInit(LightSource_t* sol)
@@ -28,10 +32,26 @@ int lightSourceInit(LightSource_t* sol)
 
 	sol->cnt = SOL_NUM;
 
-	sol->coor[0] = make_float3(-200, 400, 0);
+	randomInit();
+
+	for (int i = 0; i < SOL_NUM; i++)
+	{
+		sol->coor[i] = make_float3(randomInt(MAX_POS_SOL, MIN_POS_SOL),
+								   randomInt(MAX_POS_SOL, MIN_POS_SOL),
+								   randomInt(MAX_POS_SOL, MIN_POS_SOL));
+
+		printf("coor.x: %f coor.y: %f, coor.z: %f\n", sol->coor[i].x, sol->coor[i].y, sol->coor[i].z);
+
+		sol->r[i] = randomFloat0_to_1();
+		sol->g[i] = randomFloat0_to_1();
+		sol->b[i] = randomFloat0_to_1();
+
+		printf("r: %f, g; %f, b; %f\n", sol->r[i], sol->g[i], sol->b[i]);
+	}
+	/*sol->coor[0] = make_float3(-200, 400, 0);
 	sol->r[0] = 255 / 255;
 	sol->g[0] = 255 / 255;
-	sol->b[0] = 255 / 255;
+	sol->b[0] = 255 / 255;*/
 
 	return 0;
 }

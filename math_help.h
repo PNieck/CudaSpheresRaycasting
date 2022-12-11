@@ -1,9 +1,11 @@
-#ifndef __HELP_MATH_H_
-#define __HELP_MATH_H_
+#ifndef __HELP_MATH_H__
+#define __HELP_MATH_H__
 
 
 #include <cuda_runtime.h>
 #include <math.h>
+#include <time.h>
+#include <stdlib.h>
 
 
 inline __device__ float maxf(float a, float b)
@@ -44,9 +46,9 @@ inline __device__ float3 vectorDiff(float3 v1, float3 v2)
 
 inline __device__ void vectorMulSelf(float3* v, float d)
 {
-	v->x * d;
-	v->y * d;
-	v->z * d;
+	v->x *= d;
+	v->y *= d;
+	v->z *= d;
 }
 
 
@@ -62,9 +64,15 @@ inline __device__ float lenSquared(float3 v)
 }
 
 
+inline __device__ float vectorLen(float3 v)
+{
+	return sqrtf(lenSquared(v));
+}
+
+
 inline __device__ void vectorNormalize(float3* v)
 {
-	float invlen = 1.0f / sqrtf(lenSquared(*v));
+	float invlen = 1.0f / vectorLen(*v);
 	vectorMulSelf(v, invlen);
 }
 
@@ -75,5 +83,21 @@ inline __device__ float3 vectorNegate(float3 v)
 }
 
 
+inline void randomInit()
+{
+	srand(time(NULL));
+}
+
+
+inline int randomInt(int max, int min)
+{
+	return rand() % (max - min + 1) + min;
+}
+
+
+inline float randomFloat0_to_1()
+{
+	return (float)rand() / (float)RAND_MAX;
+}
 
 #endif

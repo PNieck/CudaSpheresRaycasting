@@ -1,9 +1,18 @@
 #include "Spheres.h"
 
 #include <stdlib.h>
+#include <time.h>
+
+#include "math_help.h"
 
 
-#define SPHERES_NUM 100
+#define SPHERES_NUM 1000
+
+#define MAX_POS 1000
+#define MIN_POS -1000
+
+#define MAX_RADIOUS 50
+#define MIN_RADIOUS 5
 
 
 int spheresInit(Spheres_t* spheres)
@@ -27,32 +36,18 @@ int spheresInit(Spheres_t* spheres)
 	}
 
 	spheres->cnt = SPHERES_NUM;
-	
-	spheres->centers[0] = make_float3(0, 0, 0); 
-	spheres->radiouses[0] = make_float1(100);
-	spheres->r[0] = 255 / 255;
-	spheres->g[0] = 17 / 255;
-	spheres->b[0] = 0 / 255;
 
-	spheres->centers[1] = make_float3(0, 200, 0);
-	spheres->radiouses[1] = make_float1(50);
-	spheres->r[1] = 13 / 255;
-	spheres->g[1] = 255 / 255;
-	spheres->b[1] = 0 / 255;
+	randomInit();
 
-	spheres->centers[2] = make_float3(50, -50, 150);
-	spheres->radiouses[2] = make_float1(30);
-	spheres->r[2] = 0 / 255;
-	spheres->g[2] = 21 / 255;
-	spheres->b[2] = 255 / 255;
-
-	for (int i = 3; i < SPHERES_NUM; i++)
+	for (int i = 0; i < SPHERES_NUM; i++)
 	{
-		spheres->centers[i] = make_float3(50, -50, 1500);
-		spheres->radiouses[i] = make_float1(30);
-		spheres->r[i] = 255 / 255;
-		spheres->g[i] = 255 / 255;
-		spheres->b[i] = 255 / 255;
+		spheres->centers[i] = make_float3(randomInt(MAX_POS, MIN_POS),
+										  randomInt(MAX_POS, MIN_POS),
+										  randomInt(MAX_POS, MIN_POS));
+		spheres->radiouses[i] = make_float1(randomInt(MAX_RADIOUS, MIN_RADIOUS));
+		spheres->r[i] = randomFloat0_to_1();
+		spheres->g[i] = randomFloat0_to_1();
+		spheres->b[i] = randomFloat0_to_1();
 	}
 
 	return 0;

@@ -301,7 +301,6 @@ int main(int argc, char* argv[])
         pxl_interop_size_get(interop,&width,&height);
 
         cuda_err = pxl_interop_map(interop,stream);
-
         cuda_err = pxl_kernel_launcher(pxl_interop_array_get(interop),
                                         width,
                                         height,

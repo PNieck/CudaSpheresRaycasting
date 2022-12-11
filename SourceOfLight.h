@@ -14,19 +14,19 @@ typedef struct LightSource_t {
 } LightSource_t;
 
 
-int lightSourceInit(LightSource_t* spheres);
+int lightSourceInit(LightSource_t* sol);
 
 
-void lightSourceFree(LightSource_t* spheres);
+void lightSourceFree(LightSource_t* sol);
 
 
-int deviceLightSourceAlloc(LightSource_t* h_spheres, LightSource_t* d_spheres);
+int deviceLightSourceAlloc(LightSource_t* h_sol, LightSource_t* d_sol);
 
 
-int deviceLightSourceInit(LightSource_t* d_spheres);
+int deviceLightSourceInit(LightSource_t* d_sol);
 
 
-void deviceLightSourceFree(LightSource_t* d_spheres);
+void deviceLightSourceFree(LightSource_t* d_sol);
 
 
 #endif

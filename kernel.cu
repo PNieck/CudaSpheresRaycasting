@@ -21,10 +21,9 @@ extern "C" {
 #include "math_help.h"
 #include <math.h>
 
-#include <stdio.h>
 
 #define SPEC_REF_CONST 0.2f
-#define DIFF_REF_CONST 0.2f
+#define DIFF_REF_CONST 0.6f
 #define AMB_REF_CONST 0.2f
 #define ALPHA 20
 
@@ -60,6 +59,20 @@ union pxl_rgbx_24
 //
 //
 //
+
+__device__ float3 calculatePixel(Screen_t screen, float x, float y)
+{
+    float3 model = make_float3(1, 0, 0);
+
+    float sinAlpha = sqrtf(screen.normalVec.z * screen.normalVec.z + screen.normalVec.y + screen.normalVec.y);
+    float cosAlpha = fabs(screen.normalVec.x);
+
+    float x_x = x * cosAlpha;
+    float x_y = x * sinAlpha;
+
+    return make_float3(screen.middle.x + x_y, screen.middle.y + x_x, screen.middle.z + y);
+}
+
 
 __device__ bool isHit(float3 center, float1 radious, float3 pixel, float3 screenNorm)
 {
@@ -112,9 +125,7 @@ __device__ union pxl_rgbx_24 colorCalculate(float3 hitPoint, float3 center, floa
         float i_g = sol.g[i] * g;
         float i_b = sol.b[i] * b;
 
-        res_r +=  coef1 * i_r + coef2 * i_r;
-
-        //printf("r = %f", res_r);
+        res_r += coef1 * i_r + coef2 * i_r;
         res_g += coef1 * i_g + coef2 * i_g;
         res_b += coef1 * i_b + coef2 * i_b;
     }
@@ -139,13 +150,14 @@ pxl_kernel(const int width, const int height, Spheres_t spheres, Screen_t* scree
   // pixel coordinates
   const int idx = (blockDim.x * blockIdx.x) + threadIdx.x;
   const int x   = idx % width - width/2;
-  const int y   = idx / width - height/2;
+  const int y   = idx / width - height/2; 
 
   union pxl_rgbx_24  rgbx;
   float hitPointDist = INFINITY;
   int index = 0;
 
-  float3 pixel = make_float3(screen->middle.x, screen->middle.y + x, screen->middle.z + y);
+  //float3 pixel = make_float3(screen->middle.x, screen->middle.y + x, screen->middle.z + y);
+  float3 pixel = calculatePixel(*screen, x, y);
 
   rgbx.na = 255;
 
@@ -214,16 +226,14 @@ pxl_kernel(const int width, const int height, Spheres_t spheres, Screen_t* scree
 //
 //
 
-extern "C"
-cudaError_t
-pxl_kernel_launcher(cudaArray_const_t array,
-                    const int         width,
-                    const int         height,
-                    Spheres_t         d_spheres,
-                    Screen_t         *screen,
-                    LightSource_t     sol,
-                    cudaEvent_t       event,
-                    cudaStream_t      stream)
+extern "C" cudaError_t pxl_kernel_launcher(cudaArray_const_t array,
+                                           const int         width,
+                                           const int         height,
+                                           Spheres_t         d_spheres,
+                                           Screen_t         *screen,
+                                           LightSource_t     sol,
+                                           cudaEvent_t       event,
+                                           cudaStream_t      stream)
 {
   cudaError_t cuda_err;
 
