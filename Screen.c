@@ -28,7 +28,7 @@ void moveOneDegree(Screen_t* s)
 	tmp.middle.y = template.middle.x * sinAlpha + template.middle.y * cosAlpha;
 
 	tmp.normalVec.x = template.normalVec.x * cosAlpha - template.normalVec.y * sinAlpha;
-	tmp.normalVec.y = template.normalVec.y * sinAlpha + template.normalVec.y * cosAlpha;
+	tmp.normalVec.y = template.normalVec.x * sinAlpha + template.normalVec.y * cosAlpha;
 
 	//s->middle.x = template.middle.x * cosAlpha - template.middle.y * sinAlpha;
 	//s->middle.y = template.middle.x * sinAlpha + template.middle.y * cosAlpha;
@@ -75,4 +75,20 @@ Screen_t* screenOnManagedAlloc()
 void screenManagedFree(Screen_t* screen)
 {
 	cudaFree(screen);
+}
+
+
+int deviceScreenInit(Screen_t* d_screen)
+{
+	Screen_t tmp;
+	initScreen(&tmp);
+
+	cudaMalloc(&d_screen, sizeof(Screen_t));
+	cudaMemcpy(d_screen, &tmp, sizeof(Screen_t), cudaMemcpyHostToDevice);
+}
+
+
+void deviceScreenFree(Screen_t* d_screen)
+{
+	cudaFree(d_screen); 
 }

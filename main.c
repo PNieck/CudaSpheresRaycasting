@@ -164,10 +164,9 @@ void cleanUp(struct pxl_interop* interop, GLFWwindow* window)
 }
 
 
-void sceneElemsCleanUp(Spheres_t* d_spheres, Screen_t* screen, LightSource_t* lights)
+void sceneElemsCleanUp(Spheres_t* d_spheres,LightSource_t* lights)
 {
     deviceSpheresFree(d_spheres);
-    screenManagedFree(screen);
     deviceLightSourceFree(lights);
 }
 
@@ -180,7 +179,7 @@ pxl_kernel_launcher(cudaArray_const_t array,
                     const int         width, 
                     const int         height,
                     Spheres_t         d_spheres,
-                    Screen_t*         screen,
+                    const float       degree,
                     LightSource_t     sol,
                     cudaEvent_t       event,
                     cudaStream_t      stream);
@@ -275,13 +274,15 @@ int main(int argc, char* argv[])
         return EXIT_FAILURE;
     }
     
-    Screen_t* screen = screenOnManagedAlloc();
+    /*Screen_t* screen = screenOnManagedAlloc();
     if (screen == NULL) {
         cleanUp(interop, window);
         deviceSpheresFree(&spheres);
         deviceLightSourceFree(&sol);
         return EXIT_FAILURE;
-    }
+    }*/
+    float degree = 0;
+
     //
     // LOOP UNTIL DONE
     //
@@ -305,10 +306,12 @@ int main(int argc, char* argv[])
                                         width,
                                         height,
                                         spheres,
-                                        screen,
+                                        degree,
                                         sol,
                                         event,
                                         stream);
+        
+        nextDegree(&degree);
 
         cuda_err = pxl_interop_unmap(interop,stream);
 
@@ -334,7 +337,7 @@ int main(int argc, char* argv[])
     // CLEANUP
     //
     cleanUp(interop, window);
-    sceneElemsCleanUp(&spheres, &screen, &sol);
+    sceneElemsCleanUp(&spheres, &sol);
 
     // missing some clean up here
 

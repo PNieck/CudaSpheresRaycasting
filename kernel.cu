@@ -1,9 +1,3 @@
-// -*- compile-command: "nvcc arch sm_50 -Xptxas=-v -cubin kernel.cu"; -*-
-
-//
-//
-//
-
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -21,11 +15,17 @@ extern "C" {
 #include "math_help.h"
 #include <math.h>
 
+#include <stdio.h>
+
 
 #define SPEC_REF_CONST 0.2f
 #define DIFF_REF_CONST 0.6f
 #define AMB_REF_CONST 0.2f
 #define ALPHA 20
+
+#define INIT_MIDDLE_X -1500
+
+#define INIT_NORMV_X 1
 
 
 //
@@ -60,17 +60,35 @@ union pxl_rgbx_24
 //
 //
 
-__device__ float3 calculatePixel(Screen_t screen, float x, float y)
+
+__device__ Screen_t calculateScreen(float degree)
 {
-    float3 model = make_float3(1, 0, 0);
+    Screen_t result;
 
-    float sinAlpha = sqrtf(screen.normalVec.z * screen.normalVec.z + screen.normalVec.y + screen.normalVec.y);
-    float cosAlpha = fabs(screen.normalVec.x);
+    float cosAlpha = cosf(degree);
+    float sinAlpha = sinf(degree);
 
-    float x_x = x * cosAlpha;
-    float x_y = x * sinAlpha;
+    result.middle.x = INIT_MIDDLE_X * cosAlpha;
+    result.middle.y = INIT_MIDDLE_X * sinAlpha;
+    result.middle.z = 0;
 
-    return make_float3(screen.middle.x + x_y, screen.middle.y + x_x, screen.middle.z + y);
+    result.normalVec.x = INIT_NORMV_X * cosAlpha;
+    result.normalVec.y = INIT_NORMV_X * sinAlpha;
+    result.normalVec.z = 0;
+
+    return result;
+}
+
+
+__device__ float3 calculatePixel(Screen_t screen, float x, float y)
+{ 
+    float sinAlpha = screen.normalVec.y;
+    float cosAlpha = screen.normalVec.x;
+
+    float x_x = - x * sinAlpha;
+    float x_y = x * cosAlpha;
+
+    return make_float3(screen.middle.x + x_x, screen.middle.y + x_y, screen.middle.z + y);
 }
 
 
@@ -78,7 +96,7 @@ __device__ bool isHit(float3 center, float1 radious, float3 pixel, float3 screen
 {
     float3 diff = vectorDiff(center, pixel);
     float3 cross = crossProduct(screenNorm, diff);
-
+     
     if (lenSquared(cross) <= radious.x * radious.x) {
         return true;
     }
@@ -142,10 +160,7 @@ __device__ union pxl_rgbx_24 colorCalculate(float3 hitPoint, float3 center, floa
 //
 //
 
-extern "C"
-__global__
-void
-pxl_kernel(const int width, const int height, Spheres_t spheres, Screen_t* screen, LightSource_t sol)
+extern "C" __global__ void pxl_kernel(const int width, const int height, Spheres_t spheres,const float degree, LightSource_t sol)
 {
   // pixel coordinates
   const int idx = (blockDim.x * blockIdx.x) + threadIdx.x;
@@ -156,8 +171,8 @@ pxl_kernel(const int width, const int height, Spheres_t spheres, Screen_t* scree
   float hitPointDist = INFINITY;
   int index = 0;
 
-  //float3 pixel = make_float3(screen->middle.x, screen->middle.y + x, screen->middle.z + y);
-  float3 pixel = calculatePixel(*screen, x, y);
+  Screen_t screen = calculateScreen(degree);
+  float3 pixel = calculatePixel(screen, x, y);
 
   rgbx.na = 255;
 
@@ -165,9 +180,9 @@ pxl_kernel(const int width, const int height, Spheres_t spheres, Screen_t* scree
   for (int i = 0; i < spheres.cnt; i++)
   {
       id = (id + 1) % spheres.cnt;
-      if (isHit(spheres.centers[id], spheres.radiouses[id], pixel, screen->normalVec))
+      if (isHit(spheres.centers[id], spheres.radiouses[id], pixel, screen.normalVec))
       {
-          float d = hitPointDst(spheres.centers[id], spheres.radiouses[id], pixel, screen->normalVec);
+          float d = hitPointDst(spheres.centers[id], spheres.radiouses[id], pixel, screen.normalVec);
           
           if (hitPointDist > d) {
               hitPointDist = d;
@@ -182,38 +197,16 @@ pxl_kernel(const int width, const int height, Spheres_t spheres, Screen_t* scree
       rgbx.b = 0;
   }
   else {
-      float3 hitPoint = vectorAdd(pixel, vectorMul(screen->normalVec, hitPointDist));
+      float3 hitPoint = vectorAdd(pixel, vectorMul(screen.normalVec, hitPointDist));
 
       rgbx = colorCalculate(hitPoint,
           spheres.centers[index],
           spheres.r[index],
           spheres.g[index],
           spheres.b[index],
-          screen->normalVec,
+          screen.normalVec,
           sol);
   }
-
-#if 0
-
-  /*// pixel color
-  const int          t    = (unsigned int)clock() / 1100000; // 1.1 GHz
-  const int          xt   = (idx + t) % width;
-  const unsigned int ramp = (unsigned int)(((float)xt / (float)(width-1)) * 255.0f + 0.5f);
-  const unsigned int bar  = ((y + t) / 32) & 3;
-
-  union pxl_rgbx_24  rgbx;
-
-  rgbx.r  = (bar == 0) || (bar == 1) ? ramp : 0;
-  rgbx.g  = (bar == 0) || (bar == 2) ? ramp : 0;
-  rgbx.b  = (bar == 0) || (bar == 3) ? ramp : 0; 
-  rgbx.na = 255;*/
-
-#else // DRAW A RED BORDER TO VALIDATE FLIPPED BLIT
-
-  /*const bool        border = (x == 0) || (x == width - 1) || (y == 0) || (y == height - 1);
-  union pxl_rgbx_24 rgbx   = { border ? 0xFF0000FF : 0xFF000000 };*/
-  
-#endif
 
   surf2Dwrite(rgbx.b32, // even simpler: (unsigned int)clock()
     surf,
@@ -230,7 +223,7 @@ extern "C" cudaError_t pxl_kernel_launcher(cudaArray_const_t array,
                                            const int         width,
                                            const int         height,
                                            Spheres_t         d_spheres,
-                                           Screen_t         *screen,
+                                           const float       degree,
                                            LightSource_t     sol,
                                            cudaEvent_t       event,
                                            cudaStream_t      stream)
@@ -249,7 +242,7 @@ extern "C" cudaError_t pxl_kernel_launcher(cudaArray_const_t array,
   // cuda_err = cudaEventRecord(event,stream);
 
   if (blocks > 0)
-    pxl_kernel<<<blocks,PXL_KERNEL_THREADS_PER_BLOCK,0,stream>>>(width,height, d_spheres, screen, sol);
+    pxl_kernel<<<blocks,PXL_KERNEL_THREADS_PER_BLOCK,0,stream>>>(width,height, d_spheres, degree, sol);
 
   // cuda_err = cudaStreamWaitEvent(stream,event,0);
   
